@@ -116,10 +116,10 @@
     let direction = 'RIGHT';
     let food;
     let score = 0;
-    let record = localStorage.getItem('snakeRecord') || 0;
-    document.getElementById('record').textContent = record;
+    let record = 0;
     let gameLoop;
-
+    let nextDirection = 'RIGHT';
+    
     function drawRect(x, y, color) {
       ctx.fillStyle = color;
       ctx.fillRect(x, y, box, box);
@@ -194,7 +194,7 @@
     const opposites = { LEFT: 'RIGHT', RIGHT: 'LEFT', UP: 'DOWN', DOWN: 'UP' };
     const dirUpper = dir.toUpperCase();
     if (dirUpper !== opposites[direction]) {
-      direction = dirUpper;
+      nextDirection = dirUpper;
     }
   }
 
