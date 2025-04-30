@@ -47,10 +47,53 @@
       text-align: center;
       color: #ccc;
     }
-    .restart-button, .share-button {
+
+    .control-button {
+      background: #444;
+      color: #fff;
+      font-size: 1.4rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      padding: 0.2rem 0;
+      margin: 2.5px 0;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    
+    .control-button:hover {
+      background: #666;
+    }
+    
+    .full-width {
       width: 100%;
       max-width: 350px;
-      height: 45px;
+    }
+    
+    .half-width {
+      width: 49.5%;
+    }
+    
+    /* Контейнер для кнопок */
+    #controls {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 0.3rem;
+      width: 100%;
+      max-width: 350px;
+    }
+    
+    #controls .row {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .share-button {
+      width: 100%;
+      max-width: 350px;
+      height: 35px;
       padding: 0.5rem 1rem;
       background: #444;
       color: #fff;
@@ -63,17 +106,10 @@
       align-items: center;
       justify-content: center;
       transition: background 0.3s ease;
-      margin-top: 1rem;
+      margin-top: 0.3rem;
     }
-    .restart-button:hover, .share-button:hover {
+    .share-button:hover {
       background-color: #666;
-    }
-    .restart-icon {
-      width: 28px;
-      height: 28px;
-      fill: white;
-      display: block;
-      transform: scaleX(-1);
     }
     #over-overlay {
       position: fixed;
@@ -89,6 +125,7 @@
       z-index: 10;
       text-align: center;
     }
+
   </style>
 </head>
 <body>
@@ -98,13 +135,16 @@
     <div class="record">Рекорд<br><span id="record">0</span></div>
   </div>
   <canvas id="game" width="320" height="320"></canvas>
-  <button onclick="init()" class="restart-button">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="restart-icon">
-      <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-    </svg>
-  </button>
+  <div id="controls">
+  <button onclick="move('up')" class="control-button full-width">⬆️</button>
+  <div class="row">
+    <button onclick="move('left')" class="control-button half-width">⬅️</button>
+    <button onclick="move('right')" class="control-button half-width">➡️</button>
+  </div>
+  <button onclick="move('down')" class="control-button full-width">⬇️</button>
+</div>
   <button onclick="sendScoreToBot()" class="share-button">🔗 Сохранить рекорд</button>
-  <div id="over-overlay">Игра окончена</div>
+  <div id="over-overlay" onclick="init()">Игра окончена</div>
 
   <script src="https://telegram.org/js/games.js"></script>
   <script>
@@ -192,7 +232,12 @@
 
     function init() {
       clearInterval(gameLoop);
-      snake = [{ x: 5 * box, y: 5 * box }];
+      snake = [
+        { x: 5 * box, y: 5 * box },
+        { x: 4 * box, y: 5 * box },
+        { x: 3 * box, y: 5 * box },
+        { x: 2 * box, y: 5 * box }
+      ];
       direction = 'RIGHT';
       nextDirection = 'RIGHT';
       score = 0;
@@ -268,7 +313,6 @@
     }
 
 
-    let touchStartX, touchStartY;
   let mouseStartX, mouseStartY, isDragging = false;
   const minSwipeDist = 30;
 
@@ -301,24 +345,6 @@
       move(keys[key]);
     } else if (keys[wasd]) {
       move(keys[wasd]);
-    }
-  });
-
-  window.addEventListener('touchstart', e => {
-    const touch = e.touches[0];
-    touchStartX = touch.clientX;
-    touchStartY = touch.clientY;
-  });
-
-  window.addEventListener('touchend', e => {
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - touchStartX;
-    const dy = touch.clientY - touchStartY;
-    if (Math.abs(dx) < minSwipeDist && Math.abs(dy) < minSwipeDist) return;
-    if (Math.abs(dx) > Math.abs(dy)) {
-      move(dx > 0 ? 'right' : 'left');
-    } else {
-      move(dy > 0 ? 'down' : 'up');
     }
   });
 
