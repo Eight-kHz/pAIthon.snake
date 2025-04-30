@@ -89,16 +89,7 @@
       justify-content: space-between;
       width: 100%;
     }
-
-         #popup-message {
-         position: fixed;
-         left: 50%;
-         transform: translateX(-50%);
-         border-radius: 20px;
-         text-align: center;
-         z-index: 999;
-         pointer-events: none;
-         }
+    
          #popup-message {
          top: 40%;
          transform: translate(-50%, -60%);
@@ -107,7 +98,15 @@
          padding: 1rem 2rem;
          font-size: 1.2rem;
          transition: 0.3s ease;
+         position: fixed;
+         left: 50%;
+         transform: translateX(-50%);
+         border-radius: 20px;
+         text-align: center;
+         z-index: 999;
+         pointer-events: none;
          }
+    
     .share-button {
       width: 100%;
       max-width: 350px;
@@ -178,7 +177,6 @@
     const minSwipeDist = 30;
     const canvasSize = 320;
     let fruitScale = 1;
-    let payload = {};
     const box = 20;
     let snake = [];
     let gameLoop;
@@ -198,13 +196,12 @@
      return {user, m_id, record, payload: { type: "snake", score: record, user, m_id }};
    }
     
-  function drawSnakeSegment(x, y, index, isHead = false) {
+function drawSnakeSegment(x, y, index, isHead = false) {
+  const centerX = x + box / 2;
+  const centerY = y + box / 2;
   if (isHead) {
     ctx.save();
-    const centerX = x + box / 2;
-    const centerY = y + box / 2;
     ctx.translate(centerX, centerY);
-
     const angles = {
       UP: 0,
       RIGHT: Math.PI / 2,
@@ -212,23 +209,55 @@
       LEFT: -Math.PI / 2
     };
     ctx.rotate(angles[direction] || 0);
-    ctx.fillStyle = '#4CAF50';
-    ctx.fillRect(-box / 2, -box / 2, box, box);
+    const gradient = ctx.createRadialGradient(0, 0, 4, 0, 0, box / 2);
+    gradient.addColorStop(0, '#4caf50');
+    gradient.addColorStop(1, '#1b5e20');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.roundRect(-box / 2, -box / 2, box, box, 6);
+    ctx.fill();
     ctx.fillStyle = 'white';
     ctx.beginPath();
-    ctx.arc(-box * 0.25, -box * 0.2, 2.5, 0, 2 * Math.PI);
-    ctx.arc( box * 0.25, -box * 0.2, 2.5, 0, 2 * Math.PI);
+    ctx.arc(-box * 0.25, -box * 0.2, 3, 0, 2 * Math.PI);
+    ctx.arc( box * 0.25, -box * 0.2, 3, 0, 2 * Math.PI);
     ctx.fill();
     ctx.fillStyle = 'black';
     ctx.beginPath();
-    ctx.arc(-box * 0.25, -box * 0.2, 1, 0, 2 * Math.PI);
-    ctx.arc( box * 0.25, -box * 0.2, 1, 0, 2 * Math.PI);
+    ctx.arc(-box * 0.25, -box * 0.2, 1.5, 0, 2 * Math.PI);
+    ctx.arc( box * 0.25, -box * 0.2, 1.5, 0, 2 * Math.PI);
     ctx.fill();
     ctx.restore();
   } else {
-    const greenValue = 200 - (index * 8);
-    ctx.fillStyle = `rgb(0, ${greenValue}, 0)`;
-    ctx.fillRect(x, y, box, box);
+    let prev = snake[index - 1];
+    let next = snake[index + 1];
+    if (!next && prev) {
+      const dx = x - prev.x;
+      const dy = y - prev.y;
+      next = { x: x + dx, y: y + dy };
+    }
+    if (!prev && next) {
+      const dx = next.x - x;
+      const dy = next.y - y;
+      prev = { x: x - dx, y: y - dy };
+    }
+    const isHorizontal = prev.y === next.y;
+    let gradient;
+    if (isHorizontal) {
+      gradient = ctx.createLinearGradient(x, y, x, y + box); 
+    } else {
+      gradient = ctx.createLinearGradient(x, y, x + box, y); 
+    }
+    gradient.addColorStop(0, '#388e3c');
+    gradient.addColorStop(0.5, '#66bb6a');
+    gradient.addColorStop(1, '#2e7d32');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.roundRect(x, y, box, box, 4);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, box * 0.2, 0, 2 * Math.PI);
+    ctx.stroke();
   }
 }
 
@@ -259,6 +288,7 @@
 
     function init() {
       clearInterval(gameLoop);
+      score = 0;
       snake = [
         { x: 5 * box, y: 5 * box },
         { x: 4 * box, y: 5 * box },
@@ -269,6 +299,8 @@
       nextDirection = 'RIGHT';
       fruitScale = 1;
       fruitGrowing = true;
+      ctx.textAlign = 'center'; 
+      ctx.textBaseline = 'middle';
       document.getElementById('score').textContent = score;
       const scoreElement = document.getElementById('score');
        const recordElement = document.getElementById('record');
@@ -287,9 +319,19 @@
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   direction = nextDirection;
   ctx.font = `${box}px sans-serif`;
-  ctx.textAlign = 'center'; 
-  ctx.textBaseline = 'middle';
-  ctx.fillText(fruit.type.emoji, fruit.x + box / 2, fruit.y + box / 2);
+  // Анимация пульсации
+  if (fruitGrowing) {
+    fruitScale += 0.1;
+    if (fruitScale >= 1.1) fruitGrowing = false;
+  } else {
+    fruitScale -= 0.1;
+    if (fruitScale <= 0.8) fruitGrowing = true;
+  }
+  ctx.save();
+  ctx.translate(fruit.x + box / 2, fruit.y + box / 2);
+  ctx.scale(fruitScale, fruitScale);
+  ctx.fillText(fruit.type.emoji, 0, 0);
+  ctx.restore();
   for (let i = 0; i < snake.length; i++) {
     drawSnakeSegment(snake[i].x, snake[i].y, i, i === 0);
   }
@@ -317,28 +359,20 @@
     headX < 0 || headX >= canvasSize || headY < 0 || headY >= canvasSize ||
     snake.some(seg => seg.x === newHead.x && seg.y === newHead.y)
   ) {
+    if (score > record) {
+      record = score;
+    }
     sendScoreToBot();
     clearInterval(gameLoop);
     document.getElementById('over-overlay').style.display = 'block';
     const scoreElement = document.getElementById('score');
     const recordElement = document.getElementById('record');
-    if (score > record) {
-      record = score;
-    }
     scoreElement.textContent = score;
     recordElement.textContent = record;
     return;
   }
   snake.unshift(newHead);
-  if (fruitGrowing) {
-    fruitScale += 0.05;
-    if (fruitScale >= 1.2) fruitGrowing = false;
-  } else {
-    fruitScale -= 0.05;
-    if (fruitScale <= 0.8) fruitGrowing = true;
-  }
 }
-
 
   function move(dir) {
     const opposites = { LEFT: 'RIGHT', RIGHT: 'LEFT', UP: 'DOWN', DOWN: 'UP' };
@@ -400,31 +434,26 @@
     isDragging = false;
   });
 
-    
    function sendScoreToBot() {
-     if (m_id === 'None' || user === 'None') {
-       showPopup("⚠️ Рекорд не сохранён.<br>Зайди из Телеграм!");
-       return;
-     }
-     payload.score = record;
-     fetch('https://mygame2048.loca.lt/game_score', {
-         method: 'POST',
-         headers: {
-           'Content-Type': 'application/json',
-         },
-         body: JSON.stringify(payload),
-         mode: 'cors',
-       })
-       .then(response => response.json())
-       .then(data => {
-         console.log("Server response:", data);
-         showPopup(data.success ? "✅ Рекорд сохранён!" : "⚠️ Ошибка при сохранении рекорда");
-       })
-       .catch((error) => {
-         console.error("Ошибка при отправке рекорда:", error);
-         showPopup("⚠️ Не удалось сохранить рекорд");
-       });
-   }
+      if (m_id === 'None' || user === 'None') {
+        showPopup("⚠️ Рекорд не сохранён.<br>Зайди из Телеграм!");
+        return;
+      }
+      const payload = { type: "snake", score: record, user, m_id };
+      fetch('https://mygame2048.loca.lt/game_score', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        mode: 'cors',
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log("Server response:", data);
+        showPopup(data.success ? "✅ Рекорд сохранён!" : "❌ Ошибка при сохранении.");
+      });
+    }
    
    function showPopup(message) {
      const popup = document.getElementById('popup-message');
