@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <title>pAIthon | Snake</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #000;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      padding: 1rem;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+      color: #fff;
+    }
+    canvas {
+      background: #111;
+      border: 4px solid #333;
+      border-radius: 10px;
+    }
+    #score-container {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      margin: 0.5rem 0;
+    }
+    .score, .record {
+      margin: 0 1rem;
+      font-size: 1rem;
+      font-weight: bold;
+      text-align: center;
+      color: #ccc;
+    }
+    .restart-button, .share-button {
+      width: 100%;
+      max-width: 350px;
+      height: 45px;
+      padding: 0.5rem 1rem;
+      background: #444;
+      color: #fff;
+      font-size: 1.2rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s ease;
+      margin-top: 1rem;
+    }
+    .restart-button:hover, .share-button:hover {
+      background-color: #666;
+    }
+    .restart-icon {
+      width: 28px;
+      height: 28px;
+      fill: white;
+      display: block;
+      transform: scaleX(-1);
+    }
+    #over-overlay {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      font-size: 1.5rem;
+      padding: 1rem 2rem;
+      border-radius: 20px;
+      display: none;
+      z-index: 10;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1><a href="https://t.me/pAIthon_ChatBot?start=snake" target="_blank" style="color:inherit;text-decoration:none;">Snake [pAIthon]</a></h1>
+  <div id="score-container">
+    <div class="score">Счёт<br><span id="score">0</span></div>
+    <div class="record">Рекорд<br><span id="record">0</span></div>
+  </div>
+  <canvas id="game" width="320" height="320"></canvas>
+  <button onclick="init()" class="restart-button">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="restart-icon">
+      <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+    </svg>
+  </button>
+  <button onclick="sendScoreToBot()" class="share-button">🔗 Сохранить рекорд</button>
+  <div id="over-overlay">Игра окончена</div>
+
+  <script src="https://telegram.org/js/games.js"></script>
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const box = 20;
+    const canvasSize = 320;
+    let snake = [];
+    let direction = 'RIGHT';
+    let food;
+    let score = 0;
+    let record = localStorage.getItem('snakeRecord') || 0;
+    document.getElementById('record').textContent = record;
+    let gameLoop;
+
+    function drawRect(x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, box, box);
+    }
+
+    function placeFood() {
+      food = {
+        x: Math.floor(Math.random() * (canvasSize / box)) * box,
+        y: Math.floor(Math.random() * (canvasSize / box)) * box
+      };
+    }
+
+    function init() {
+      clearInterval(gameLoop);
+      snake = [{ x: 5 * box, y: 5 * box }];
+      direction = 'RIGHT';
+      score = 0;
+      document.getElementById('score').textContent = score;
+      document.getElementById('over-overlay').style.display = 'none';
+      placeFood();
+      gameLoop = setInterval(drawGame, 150);
+    }
+
+    function drawGame() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawRect(food.x, food.y, 'lime');
+      for (let i = 0; i < snake.length; i++) {
+        drawRect(snake[i].x, snake[i].y, i === 0 ? '#0ff' : '#0aa');
+      }
+
+      let headX = snake[0].x;
+      let headY = snake[0].y;
+
+      if (direction === 'LEFT') headX -= box;
+      if (direction === 'UP') headY -= box;
+      if (direction === 'RIGHT') headX += box;
+      if (direction === 'DOWN') headY += box;
+
+      if (headX === food.x && headY === food.y) {
+        score++;
+        document.getElementById('score').textContent = score;
+        placeFood();
+      } else {
+        snake.pop();
+      }
+
+      const newHead = { x: headX, y: headY };
+
+      // Game over
+      if (
+        headX < 0 || headX >= canvasSize || headY < 0 || headY >= canvasSize ||
+        snake.some(seg => seg.x === newHead.x && seg.y === newHead.y)
+      ) {
+        clearInterval(gameLoop);
+        document.getElementById('over-overlay').style.display = 'block';
+        if (score > record) {
+          record = score;
+          localStorage.setItem('snakeRecord', record);
+          document.getElementById('record').textContent = record;
+        }
+        return;
+      }
+
+      snake.unshift(newHead);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft' && direction !== 'RIGHT') direction = 'LEFT';
+      else if (e.key === 'ArrowUp' && direction !== 'DOWN') direction = 'UP';
+      else if (e.key === 'ArrowRight' && direction !== 'LEFT') direction = 'RIGHT';
+      else if (e.key === 'ArrowDown' && direction !== 'UP') direction = 'DOWN';
+    });
+
+    function sendScoreToBot() {
+      if (typeof TelegramGameProxy !== 'undefined') {
+        TelegramGameProxy.postEvent('score', score);
+      } else if (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) {
+        fetch('/score', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            score: score,
+            initData: Telegram.WebApp.initData
+          })
+        });
+      } else {
+        alert('Telegram WebApp не инициализирован');
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <title>pAIthon | Snake</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #000;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      padding: 1rem;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+      color: #fff;
+    }
+    canvas {
+      background: #111;
+      border: 4px solid #333;
+      border-radius: 10px;
+    }
+    #score-container {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      margin: 0.5rem 0;
+    }
+    .score, .record {
+      margin: 0 1rem;
+      font-size: 1rem;
+      font-weight: bold;
+      text-align: center;
+      color: #ccc;
+    }
+    .restart-button, .share-button {
+      width: 100%;
+      max-width: 350px;
+      height: 45px;
+      padding: 0.5rem 1rem;
+      background: #444;
+      color: #fff;
+      font-size: 1.2rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s ease;
+      margin-top: 1rem;
+    }
+    .restart-button:hover, .share-button:hover {
+      background-color: #666;
+    }
+    .restart-icon {
+      width: 28px;
+      height: 28px;
+      fill: white;
+      display: block;
+      transform: scaleX(-1);
+    }
+    #over-overlay {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      font-size: 1.5rem;
+      padding: 1rem 2rem;
+      border-radius: 20px;
+      display: none;
+      z-index: 10;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1><a href="https://t.me/pAIthon_ChatBot?start=snake" target="_blank" style="color:inherit;text-decoration:none;">Snake [pAIthon]</a></h1>
+  <div id="score-container">
+    <div class="score">Счёт<br><span id="score">0</span></div>
+    <div class="record">Рекорд<br><span id="record">0</span></div>
+  </div>
+  <canvas id="game" width="320" height="320"></canvas>
+  <button onclick="init()" class="restart-button">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="restart-icon">
+      <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+    </svg>
+  </button>
+  <button onclick="sendScoreToBot()" class="share-button">🔗 Сохранить рекорд</button>
+  <div id="over-overlay">Игра окончена</div>
+
+  <script src="https://telegram.org/js/games.js"></script>
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const box = 20;
+    const canvasSize = 320;
+    let snake = [];
+    let direction = 'RIGHT';
+    let food;
+    let score = 0;
+    let record = localStorage.getItem('snakeRecord') || 0;
+    document.getElementById('record').textContent = record;
+    let gameLoop;
+
+    function drawRect(x, y, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, box, box);
+    }
+
+    function placeFood() {
+      food = {
+        x: Math.floor(Math.random() * (canvasSize / box)) * box,
+        y: Math.floor(Math.random() * (canvasSize / box)) * box
+      };
+    }
+
+    function init() {
+      clearInterval(gameLoop);
+      snake = [{ x: 5 * box, y: 5 * box }];
+      direction = 'RIGHT';
+      score = 0;
+      document.getElementById('score').textContent = score;
+      document.getElementById('over-overlay').style.display = 'none';
+      placeFood();
+      gameLoop = setInterval(drawGame, 150);
+    }
+
+    function drawGame() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawRect(food.x, food.y, 'lime');
+      for (let i = 0; i < snake.length; i++) {
+        drawRect(snake[i].x, snake[i].y, i === 0 ? '#0ff' : '#0aa');
+      }
+
+      let headX = snake[0].x;
+      let headY = snake[0].y;
+
+      if (direction === 'LEFT') headX -= box;
+      if (direction === 'UP') headY -= box;
+      if (direction === 'RIGHT') headX += box;
+      if (direction === 'DOWN') headY += box;
+
+      if (headX === food.x && headY === food.y) {
+        score++;
+        document.getElementById('score').textContent = score;
+        placeFood();
+      } else {
+        snake.pop();
+      }
+
+      const newHead = { x: headX, y: headY };
+
+      // Game over
+      if (
+        headX < 0 || headX >= canvasSize || headY < 0 || headY >= canvasSize ||
+        snake.some(seg => seg.x === newHead.x && seg.y === newHead.y)
+      ) {
+        clearInterval(gameLoop);
+        document.getElementById('over-overlay').style.display = 'block';
+        if (score > record) {
+          record = score;
+          localStorage.setItem('snakeRecord', record);
+          document.getElementById('record').textContent = record;
+        }
+        return;
+      }
+
+      snake.unshift(newHead);
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft' && direction !== 'RIGHT') direction = 'LEFT';
+      else if (e.key === 'ArrowUp' && direction !== 'DOWN') direction = 'UP';
+      else if (e.key === 'ArrowRight' && direction !== 'LEFT') direction = 'RIGHT';
+      else if (e.key === 'ArrowDown' && direction !== 'UP') direction = 'DOWN';
+    });
+
+    function sendScoreToBot() {
+      if (typeof TelegramGameProxy !== 'undefined') {
+        TelegramGameProxy.postEvent('score', score);
+      } else if (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) {
+        fetch('/score', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            score: score,
+            initData: Telegram.WebApp.initData
+          })
+        });
+      } else {
+        alert('Telegram WebApp не инициализирован');
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
