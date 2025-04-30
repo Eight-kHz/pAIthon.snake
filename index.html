@@ -90,6 +90,24 @@
       width: 100%;
     }
 
+         #popup-message {
+         position: fixed;
+         left: 50%;
+         transform: translateX(-50%);
+         border-radius: 20px;
+         text-align: center;
+         z-index: 999;
+         pointer-events: none;
+         }
+         #popup-message {
+         top: 40%;
+         transform: translate(-50%, -60%);
+         background: rgba(0, 0, 0, 0.8);
+         color: #fff;
+         padding: 1rem 2rem;
+         font-size: 1.2rem;
+         transition: 0.3s ease;
+         }
     .share-button {
       width: 100%;
       max-width: 350px;
@@ -134,6 +152,7 @@
     <div class="score">Счёт<br><span id="score">0</span></div>
     <div class="record">Рекорд<br><span id="record">0</span></div>
   </div>
+  <div id="popup-message" style="display:none;" role="alert"></div>
   <canvas id="game" width="320" height="320"></canvas>
   <div id="controls">
   <button onclick="move('up')" class="control-button full-width">⬆️</button>
@@ -145,31 +164,45 @@
 </div>
   <button onclick="sendScoreToBot()" class="share-button">🔗 Сохранить рекорд</button>
   <div id="over-overlay" onclick="init()">Игра окончена</div>
-
+  
   <script src="https://telegram.org/js/games.js"></script>
   <script>
+    let mouseStartX, mouseStartY, isDragging = false;
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
-    const box = 20;
-    const canvasSize = 320;
-    let snake = [];
-    let direction = 'RIGHT';
-    let score = 0;
-    let record = 0;
-    let gameLoop;
+    let user = 'None', m_id = 'None';
     let nextDirection = 'RIGHT';
-    let fruitScale = 1;
+    let score = 0, record = 0;
+    let direction = 'RIGHT';
     let fruitGrowing = true;
+    const minSwipeDist = 30;
+    const canvasSize = 320;
+    let fruitScale = 1;
+    let payload = {};
+    const box = 20;
+    let snake = [];
+    let gameLoop;
+    
+   function getParamsFromURL() {
+     try {
+       const encoded = new URLSearchParams(window.location.search).get('r');
+       if (!encoded) throw new Error("No data in URL");
+       const {u, m, r
+       } = JSON.parse(atob(encoded));
+       user = u ?? user;
+       m_id = m ?? m_id;
+       record = r ?? record;
+     } catch (e) {
+       console.warn("URL data missing or invalid:", e.message);
+     }
+     return {user, m_id, record, payload: { type: "snake", score: record, user, m_id }};
+   }
     
   function drawSnakeSegment(x, y, index, isHead = false) {
   if (isHead) {
     ctx.save();
-
-    // Центр головы
     const centerX = x + box / 2;
     const centerY = y + box / 2;
-
-    // Сдвигаем и поворачиваем канвас в зависимости от направления
     ctx.translate(centerX, centerY);
 
     const angles = {
@@ -179,24 +212,18 @@
       LEFT: -Math.PI / 2
     };
     ctx.rotate(angles[direction] || 0);
-
-    // Рисуем голову (всегда вверх, т.к. канвас уже повернут)
     ctx.fillStyle = '#4CAF50';
     ctx.fillRect(-box / 2, -box / 2, box, box);
-
-    // Глаза — по Y вверх от центра
     ctx.fillStyle = 'white';
     ctx.beginPath();
     ctx.arc(-box * 0.25, -box * 0.2, 2.5, 0, 2 * Math.PI);
     ctx.arc( box * 0.25, -box * 0.2, 2.5, 0, 2 * Math.PI);
     ctx.fill();
-
     ctx.fillStyle = 'black';
     ctx.beginPath();
     ctx.arc(-box * 0.25, -box * 0.2, 1, 0, 2 * Math.PI);
     ctx.arc( box * 0.25, -box * 0.2, 1, 0, 2 * Math.PI);
     ctx.fill();
-
     ctx.restore();
   } else {
     const greenValue = 200 - (index * 8);
@@ -240,11 +267,16 @@
       ];
       direction = 'RIGHT';
       nextDirection = 'RIGHT';
-      score = 0;
-      fruitScale = 1; // Заменено с foodScale
-      fruitGrowing = true; // Заменено с foodGrowing
+      fruitScale = 1;
+      fruitGrowing = true;
       document.getElementById('score').textContent = score;
-      record = 0;
+      const scoreElement = document.getElementById('score');
+       const recordElement = document.getElementById('record');
+       if (score > record) {
+         record = score;
+       }
+       scoreElement.textContent = score;
+       recordElement.textContent = record;
       document.getElementById('record').textContent = record;
       document.getElementById('over-overlay').style.display = 'none';
       placefruit();
@@ -252,69 +284,61 @@
     }
 
     function drawGame() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      direction = nextDirection;
-      
-      // Отрисовка фрукта (используем эмоджи)
-      ctx.font = `${box}px sans-serif`; // Устанавливаем размер шрифта
-      ctx.textAlign = 'center'; // Выравнивание текста по центру
-      ctx.textBaseline = 'middle'; // Выравнивание текста по вертикали
-    
-      // Отображение эмодзи фрукта
-      ctx.fillText(fruit.type.emoji, fruit.x + box / 2, fruit.y + box / 2);
-    
-      // Отрисовка змейки
-      for (let i = 0; i < snake.length; i++) {
-        drawSnakeSegment(snake[i].x, snake[i].y, i, i === 0);
-      }
-    
-      let headX = snake[0].x;
-      let headY = snake[0].y;
-    
-      if (direction === 'LEFT') headX -= box;
-      if (direction === 'UP') headY -= box;
-      if (direction === 'RIGHT') headX += box;
-      if (direction === 'DOWN') headY += box;
-    
-      if (headX === fruit.x && headY === fruit.y) {
-        score++;
-        document.getElementById('score').textContent = score;
-        placefruit();
-      } else {
-        snake.pop();
-      }
-    
-      const newHead = { x: headX, y: headY };
-    
-      // Game over
-      if (
-        headX < 0 || headX >= canvasSize || headY < 0 || headY >= canvasSize ||
-        snake.some(seg => seg.x === newHead.x && seg.y === newHead.y)
-      ) {
-        clearInterval(gameLoop);
-        document.getElementById('over-overlay').style.display = 'block';
-        if (score > record) {
-          record = score;
-          localStorage.setItem('snakeRecord', record);
-          document.getElementById('record').textContent = record;
-        }
-        return;
-      }
-      snake.unshift(newHead);
-    
-      // Управление изменением размера фрукта
-      if (fruitGrowing) {
-        fruitScale += 0.05;
-        if (fruitScale >= 1.2) fruitGrowing = false;
-      } else {
-        fruitScale -= 0.05;
-        if (fruitScale <= 0.8) fruitGrowing = true;
-      }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  direction = nextDirection;
+  ctx.font = `${box}px sans-serif`;
+  ctx.textAlign = 'center'; 
+  ctx.textBaseline = 'middle';
+  ctx.fillText(fruit.type.emoji, fruit.x + box / 2, fruit.y + box / 2);
+  for (let i = 0; i < snake.length; i++) {
+    drawSnakeSegment(snake[i].x, snake[i].y, i, i === 0);
+  }
+  let headX = snake[0].x;
+  let headY = snake[0].y;
+  if (direction === 'LEFT') headX -= box;
+  if (direction === 'UP') headY -= box;
+  if (direction === 'RIGHT') headX += box;
+  if (direction === 'DOWN') headY += box;
+  if (headX === fruit.x && headY === fruit.y) {
+    score++;
+    document.getElementById('score').textContent = score;
+    if (score > record) {
+      record = score;
+      document.getElementById('record').textContent = record;
     }
+    placefruit();
+  } else {
+    snake.pop();
+  }
 
+  const newHead = { x: headX, y: headY };
+  // Game over
+  if (
+    headX < 0 || headX >= canvasSize || headY < 0 || headY >= canvasSize ||
+    snake.some(seg => seg.x === newHead.x && seg.y === newHead.y)
+  ) {
+    sendScoreToBot();
+    clearInterval(gameLoop);
+    document.getElementById('over-overlay').style.display = 'block';
+    const scoreElement = document.getElementById('score');
+    const recordElement = document.getElementById('record');
+    if (score > record) {
+      record = score;
+    }
+    scoreElement.textContent = score;
+    recordElement.textContent = record;
+    return;
+  }
+  snake.unshift(newHead);
+  if (fruitGrowing) {
+    fruitScale += 0.05;
+    if (fruitScale >= 1.2) fruitGrowing = false;
+  } else {
+    fruitScale -= 0.05;
+    if (fruitScale <= 0.8) fruitGrowing = true;
+  }
+}
 
-  let mouseStartX, mouseStartY, isDragging = false;
-  const minSwipeDist = 30;
 
   function move(dir) {
     const opposites = { LEFT: 'RIGHT', RIGHT: 'LEFT', UP: 'DOWN', DOWN: 'UP' };
@@ -376,23 +400,63 @@
     isDragging = false;
   });
 
-    function sendScoreToBot() {
-      if (typeof TelegramGameProxy !== 'undefined') {
-        TelegramGameProxy.postEvent('score', score);
-      } else if (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) {
-        fetch('/score', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            score: score,
-            initData: Telegram.WebApp.initData
-          })
-        });
-      } else {
-        alert('Telegram WebApp не инициализирован');
-      }
-    }
-    init();
+    
+   function sendScoreToBot() {
+     if (m_id === 'None' || user === 'None') {
+       showPopup("⚠️ Рекорд не сохранён.<br>Зайди из Телеграм!");
+       return;
+     }
+     payload.score = record;
+     fetch('https://mygame2048.loca.lt/game_score', {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify(payload),
+         mode: 'cors',
+       })
+       .then(response => response.json())
+       .then(data => {
+         console.log("Server response:", data);
+         showPopup(data.success ? "✅ Рекорд сохранён!" : "⚠️ Ошибка при сохранении рекорда");
+       })
+       .catch((error) => {
+         console.error("Ошибка при отправке рекорда:", error);
+         showPopup("⚠️ Не удалось сохранить рекорд");
+       });
+   }
+   
+   function showPopup(message) {
+     const popup = document.getElementById('popup-message');
+     popup.innerHTML = message;
+     popup.style.display = 'flex';
+     popup.style.opacity = '0';
+     popup.style.transform = 'translate(-50%, -60%)';
+     setTimeout(() => {
+       popup.style.opacity = '1';
+       popup.style.transform = 'translate(-50%, -50%)';
+     }, 10);
+     setTimeout(() => {
+       popup.style.opacity = '0';
+       popup.style.transform = 'translate(-50%, -60%)';
+       setTimeout(() => {
+         popup.style.display = 'none';
+       }, 300);
+     }, 2500);
+   }
+    
+    window.addEventListener('load', () => {
+     const urlData = getParamsFromURL();
+     user = urlData.user;
+     m_id = urlData.m_id;
+     record = urlData.record;
+     payload = urlData.payload;
+     init();
+     if (record > 0) {
+       document.getElementById('record').textContent = record;
+     }
+     console.log(`User login:\ntype: '${payload.type}'\nuser: '${payload.user}'\nm_id: '${payload.m_id}'`);})
+      
   </script>
 </body>
 </html>
